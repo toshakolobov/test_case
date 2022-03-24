@@ -1,3 +1,5 @@
+import configparser
+import re
 import sys
 from pathlib import Path
 
@@ -11,6 +13,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setMinimumWidth(640)
         self.setMinimumHeight(480)
 
+        self.iniconfig_path = Path(QtWidgets.qApp.property('config_dir_path')) / 'conf.ini'
+
+        self.style_dict = {}
         self.get_available_ss()
 
         self.setup_ui()
@@ -32,7 +37,7 @@ class MainWindow(QtWidgets.QMainWindow):
         dw_content_wgt = QtWidgets.QWidget()
         dw_layout = QtWidgets.QVBoxLayout(dw_content_wgt)
         self.style_lw = QtWidgets.QListWidget(dw_content_wgt)
-        # self.fill_style_lw()
+        self.init_fill_style_lw()
         dw_layout.addWidget(self.style_lw)
         self.style_dw = QtWidgets.QDockWidget('Style', self.central_wgt)
         self.style_dw.setWidget(dw_content_wgt)
@@ -62,6 +67,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def init_signals(self):
         """Инициализация сигналов"""
         self.exit_action.triggered.connect(QtWidgets.qApp.exit)
+        # self.style_lw.currentItemChanged.connect(self.on_style_lw_current_item_changed)
+        self.style_lw.itemSelectionChanged.connect(self.on_style_lw_selection_changed)
 
     def center(self):
         """Располагает виджет MainWindow в центре экрана, на котором располагается курсор мыши"""
@@ -72,9 +79,64 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def get_available_ss(self):
         config_dir_path = Path(QtWidgets.qApp.property('config_dir_path'))
+        wgt_types = ('QFrame', 'QListWidget', 'QStatusBar')
         for path in config_dir_path.iterdir():
             if path.suffix == '.stylesheet':
-                print(path)
+                style_name = path.stem.capitalize()
+                self.style_dict[style_name] = {
+                    'style_lw_item': QtWidgets.QListWidgetItem(style_name)
+                }
+                with open(path, 'r') as handle:
+                    content = handle.read()
+                    for wgt_type in wgt_types:
+                        style = None
+                        if search := re.search(fr'{wgt_type}\s*({{.+?}})', content, re.DOTALL):
+                            style = re.sub('\s+', ' ', search.group(1))
+                        self.style_dict[style_name][wgt_type] = style
+
+    def init_fill_style_lw(self):
+        for style_name in sorted(self.style_dict.keys()):
+            item = self.style_dict[style_name]['style_lw_item']
+            self.style_lw.addItem(item)
+        self.select_style(self.iniconfig_style)
+
+    def select_style(self, style_name):
+            try:
+                self.style_lw.setCurrentItem(self.style_dict[style_name]['style_lw_item'])
+            except Exception:
+                self.style_lw.setCurrentRow(-1)
+
+    @property
+    def iniconfig_style(self):
+        inicfg = configparser.ConfigParser()
+        inicfg.read(self.iniconfig_path)
+        value = None
+        try:
+            value = inicfg.get('view', 'style')
+        except Exception:
+            pass
+        return value
+
+    @iniconfig_style.setter
+    def iniconfig_style(self, value):
+        inicfg = configparser.ConfigParser()
+        inicfg.read(self.iniconfig_path)
+        if not inicfg.has_section('view'):
+            inicfg.add_section('view')
+        inicfg.set('view', 'style', value)
+        with open(self.iniconfig_path, 'w+') as handle:
+            inicfg.write(handle)
+
+    # @QtCore.pyqtSlot(QtWidgets.QListWidgetItem, QtWidgets.QListWidgetItem)
+    # def on_style_lw_current_item_changed(self, current: QtWidgets.QListWidgetItem,
+    #                                      previous: QtWidgets.QListWidgetItem):
+    #     print(None if previous is None else previous.text())
+    #     print(None if current is None else current.text())
+    #     print('#' * 150)
+
+    @QtCore.pyqtSlot()
+    def on_style_lw_selection_changed(self):
+        print(self.style_lw.selectedItems())
 
 
 class HeaderButtonsHL(QtWidgets.QHBoxLayout):

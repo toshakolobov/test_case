@@ -1,6 +1,7 @@
 #!/bin/bash
 
-PYTHON_ROOT="$HOME/Miniconda3/bin"
+#PYTHON_ROOT="$HOME/Miniconda3/bin"
+#PYTHON_ROOT="/grid/opfsh_tools/development/Anaconda3/envs/pyqt/bin"
 
 VENV_NAME="venv"
 
